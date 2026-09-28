@@ -1,33 +1,55 @@
 # VocaMate
 
-Extension Chrome giúp tra và lưu từ tiếng Anh trong lúc đọc web.
+VocaMate là extension cho Chrome giúp tra nghĩa tiếng Việt, xem phiên âm, nghe phát âm và lưu từ tiếng Anh ngay khi đọc trang web. Dự án được xây dựng bằng Plasmo, React và TypeScript.
 
-## Tính năng
+## Cài đặt để dùng thử
 
-- Bôi đen từ hoặc cụm từ (tối đa 50 ký tự), bấm **Tra nghĩa** để xem nghĩa tiếng Việt, cách đọc và ví dụ. Nút **Nghe** ưu tiên audio từ điển nếu có; khi dùng giọng của trình duyệt, extension chọn giọng tiếng Anh phù hợp và đọc chậm hơn để dễ nghe.
-- Khi chọn đoạn dài hơn 50 ký tự, nút **Dịch đoạn** xuất hiện và hiển thị bản dịch. Dịch tối đa 2.000 ký tự mỗi lần; đoạn dài hơn vẫn hiện nút và báo giới hạn khi bấm.
-- Tra thủ công trong popup; lưu, tìm, xóa từng từ hoặc xóa toàn bộ từ trên máy.
-- Bật/tắt extension toàn cục hoặc cho website hiện tại trong popup.
-- Nghĩa và ví dụ hiện từ yêu cầu dịch. Phiên âm còn thiếu được bổ sung nhanh từ [CMU Pronouncing Dictionary](https://github.com/cmusphinx/cmudict) lưu trong extension, hoặc từ [FreeDictionaryAPI.com](https://freedictionaryapi.com/) và Wiktionary. Từ đã lưu dùng `chrome.storage.local` và không tự đồng bộ.
+1. Cài [Node.js](https://nodejs.org/) phiên bản 22 trở lên và npm.
+2. Mở terminal **tại thư mục chứa `package.json` này**, rồi chạy:
 
-## Yêu cầu và chạy thử
+   ```bash
+   npm ci
+   npm run build
+   ```
 
-- Node.js 22+ và npm (test dùng khả năng chạy TypeScript của Node).
-- `npm ci`
-- `npm run dev` để phát triển, hoặc `npm run build` để tạo bản dùng thử.
-- Mở `chrome://extensions`, bật **Developer mode**, chọn **Load unpacked** và trỏ tới `build/chrome-mv3-dev` hoặc `build/chrome-mv3-prod` tương ứng.
-- Kiểm tra: `npm run typecheck`, `npm test`, `npm run build`.
+3. Mở `chrome://extensions`, bật **Chế độ dành cho nhà phát triển** (Developer mode), chọn **Tải tiện ích đã giải nén** (Load unpacked).
+4. Chọn thư mục **`build/chrome-mv3-prod`** vừa tạo. Thư mục được chọn phải chứa file `manifest.json`; không chọn thư mục mã nguồn hoặc file ZIP.
+5. Tải lại các trang web đã mở trước khi thử bôi đen từ.
 
-Trong bản này, extension cần mạng để tra nghĩa. Google Translate endpoint đang dùng là endpoint công khai không có cam kết vận hành; khi dịch vụ đổi hoặc giới hạn request, tra nghĩa có thể lỗi. Phiên âm cục bộ lấy từ dữ liệu tiếng Anh Mỹ của CMU; cách chuyển ARPAbet sang IPA có thể chưa phản ánh mọi giọng đọc. Từ mới, tên riêng hoặc thuật ngữ hiếm vẫn có thể không có phiên âm. Nguồn FreeDictionaryAPI.com có [yêu cầu ghi nguồn và giới hạn request](https://freedictionaryapi.com/); thông tin nguồn được hiển thị khi dữ liệu của họ được dùng. Giấy phép thư viện và ghi nhận CMU nằm trong `NOTICE.txt` và bản đóng gói. Muốn phát hành ở quy mô lớn cần chọn nhà cung cấp dịch có điều khoản/giới hạn phù hợp, và nếu có API key bí mật thì đặt ở backend riêng. Không nhúng key vào extension.
+Nếu đã cài bản cũ, sau khi chạy `npm run build`, bấm **Tải lại** (Reload) trên thẻ VocaMate tại `chrome://extensions`, rồi tải lại trang web đang đọc. Bản ZIP để lưu hoặc phân phối có thể tạo bằng `npm run package` và nằm tại `build/chrome-mv3-prod.zip`.
 
-## Cấu trúc
+## Cách sử dụng
 
-- `src/content.tsx`: nút và thẻ tra từ trên website.
-- `src/popup.tsx`: tra thủ công, cài đặt và danh sách từ.
-- `src/background.ts`: gọi dịch vụ, timeout và cache tạm.
-- `src/lib/lookup.ts`: chuẩn hóa và đọc kết quả API.
-- `src/lib/dictionary.ts`, `src/lib/pronunciation.ts`: bổ sung IPA từ nguồn từ điển và dữ liệu cục bộ.
-- `src/lib/storage.ts`: cài đặt và từ đã lưu.
-- `tests/`: test dữ liệu trả về và lỗi upstream.
+- **Tra ngay trên trang:** Bôi đen một từ hoặc cụm từ tiếng Anh, bấm **Tra nghĩa**. Thẻ kết quả hiện nghĩa, phiên âm và ví dụ khi có dữ liệu. Bấm **Nghe** để phát âm hoặc **Lưu từ** để đưa vào danh sách.
+- **Dịch đoạn:** Bôi đen đoạn văn dài hơn 50 ký tự, bấm **Dịch đoạn**. Giới hạn mỗi lần dịch là 2.000 ký tự.
+- **Tra trong popup:** Bấm biểu tượng VocaMate trên thanh công cụ, nhập từ hoặc cụm từ tối đa 50 ký tự và bấm **Tra**. Tại đây có thể nghe, lưu, tìm kiếm và xóa từ đã lưu.
+- **Tùy chỉnh:** Trong popup có công tắc bật/tắt VocaMate trên mọi trang hoặc riêng website hiện tại.
 
-Extension chỉ chạy trên trang HTTP/HTTPS thông thường. Các trang hệ thống của trình duyệt, Chrome Web Store và một số PDF/iframe không hỗ trợ content script theo giới hạn của trình duyệt. Dữ liệu từ đã lưu tối đa 500 mục, từ mới sẽ thay mục cũ cùng chữ.
+Nút **Nghe** dùng giọng tiếng Anh có sẵn trong trình duyệt/máy, ưu tiên giọng Anh-Mỹ và đọc chậm hơn mặc định. Chất giọng thực tế phụ thuộc vào các giọng đã cài trên máy. Bấm nghe từ khác sẽ dừng âm đang phát.
+
+## Nguồn dữ liệu và quyền riêng tư
+
+- Nghĩa và ví dụ được lấy từ yêu cầu dịch tới Google Translate. Phiên âm còn thiếu được bổ sung từ [CMU Pronouncing Dictionary](https://github.com/cmusphinx/cmudict) đóng gói cùng extension hoặc từ [FreeDictionaryAPI.com](https://freedictionaryapi.com/) và Wiktionary. Khi dùng dữ liệu FreeDictionaryAPI, thẻ kết quả hiển thị liên kết ghi nguồn.
+- Văn bản bạn chủ động tra được gửi tới các dịch vụ trên để lấy kết quả. Danh sách từ và cài đặt lưu trong `chrome.storage.local` trên trình duyệt, không tự đồng bộ. Danh sách giữ tối đa 500 từ; lưu lại cùng một từ sẽ cập nhật mục cũ.
+- Extension chỉ yêu cầu quyền `storage`, `activeTab` và truy cập tới các máy chủ dịch/từ điển được khai báo trong `package.json`.
+
+## Giới hạn hiện tại
+
+- Cần kết nối mạng để tra nghĩa. Endpoint Google Translate hiện dùng là endpoint công khai, nên tra cứu có thể lỗi nếu dịch vụ thay đổi hoặc giới hạn yêu cầu.
+- Một số từ mới, tên riêng hoặc thuật ngữ hiếm có thể chưa có phiên âm hay ví dụ. Phiên âm CMU được chuyển sang IPA theo giọng Anh-Mỹ gần đúng; các giọng đọc khác có thể khác.
+- Nút tra trên trang chỉ hoạt động ở trang HTTP/HTTPS cho phép content script. Các trang hệ thống của Chrome, Chrome Web Store và một số PDF/iframe không hỗ trợ.
+
+## Phát triển và kiểm tra
+
+```bash
+npm ci
+npm run dev        # tạo bản phát triển trong build/chrome-mv3-dev
+npm run typecheck
+npm test
+npm run build      # tạo bản dùng thử trong build/chrome-mv3-prod
+npm run package    # đóng gói bản production thành ZIP
+```
+
+Mã nguồn chính: `src/content.tsx` hiển thị nút/thẻ trên trang, `src/popup.tsx` là cửa sổ tra từ, `src/background.ts` xử lý yêu cầu và cache tạm. Các hàm tra cứu, phiên âm, phát âm và lưu dữ liệu nằm trong `src/lib/`; các bài kiểm tra nằm trong `tests/`.
+
+Giấy phép và ghi nhận dữ liệu/thư viện CMU nằm trong [`NOTICE.txt`](NOTICE.txt), cũng được chép vào bản build. Nếu phát hành rộng rãi, cần xem lại điều khoản và hạn mức của các dịch vụ dữ liệu đang dùng.
