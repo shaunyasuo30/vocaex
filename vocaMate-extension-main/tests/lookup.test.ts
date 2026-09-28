@@ -113,6 +113,55 @@ test("local CMU pronunciation fills words and technical compounds without networ
   if (reply.ok) assert.equal(reply.details.phonetic, "/ˈdeɪtəˌsɛts/")
 })
 
+test("verified pronunciation corrects the stochastic word family and phrases", async () => {
+  globalThis.fetch = async () => { throw new Error("Should not fetch") }
+  assert.equal(localPronunciation("stochastic"), "/stəˈkæstɪk/")
+  assert.equal(localPronunciation("stochastically"), "/stəˈkæstɪkli/")
+  assert.equal(localPronunciation("stochastic gradient descent"), "/stəˈkæstɪk ˈɡɹeɪdiənt dɪˈsɛnt/")
+  const reply = await lookupDetails("Stochastic", new AbortController().signal)
+  assert.equal(reply.ok, true)
+  if (reply.ok) assert.equal(reply.details.phonetic, "/stəˈkæstɪk/")
+})
+
+test("Cambridge-checked corrections replace misleading CMU entries", () => {
+  const expected: Record<string, string> = {
+    algorithm: "/ˈælɡɚɪðəm/",
+    analysis: "/əˈnæləsɪs/",
+    asynchronous: "/eɪˈsɪŋkɹənəs/",
+    classification: "/ˌklæsəfəˈkeɪʃən/",
+    convolution: "/ˌkɑnvəˈluʃən/",
+    matrices: "/ˈmeɪtɹəˌsiz/",
+    optimization: "/ˌɑptəməˈzeɪʃən/",
+    parameter: "/pəˈɹæmətɚ/",
+    probabilistic: "/ˌpɹɑbəbəlˈɪstɪk/",
+    query: "/ˈkwɪɹi/"
+  }
+  for (const [word, phonetic] of Object.entries(expected)) assert.equal(localPronunciation(word), phonetic, word)
+})
+
+test("dictionary lookup prefers US IPA over a UK entry and overrides CMU fallback", async () => {
+  globalThis.fetch = async () => Response.json({
+    entries: [{ language: { code: "en" }, pronunciations: [
+      { type: "ipa", text: "/ˈtəʊkən/", tags: ["UK"] },
+      { type: "ipa", text: "/ˈtoʊkən/", tags: ["US"] }
+    ] }],
+    source: { url: "https://en.wiktionary.org/wiki/token" }
+  })
+  const reply = await lookupDetails("token", new AbortController().signal)
+  assert.equal(reply.ok, true)
+  if (reply.ok) {
+    assert.equal(reply.details.phonetic, "/ˈtoʊkən/")
+    assert.equal(reply.details.sourceUrl, "https://en.wiktionary.org/wiki/token")
+  }
+})
+
+test("British-only dictionary IPA does not replace an available American fallback", () => {
+  const details = parseFreeDictionary({ entries: [{ language: { code: "en" }, pronunciations: [
+    { type: "ipa", text: "/ˈtəʊkən/", tags: ["UK"] }
+  ] }] }, "/ˈtoʊkən/")
+  assert.equal(details.phonetic, "/ˈtoʊkən/")
+})
+
 test("translation HTTP failure is not treated as a result", async () => {
   globalThis.fetch = async (url) => url.toString().includes("translate")
     ? new Response("server error", { status: 500 })

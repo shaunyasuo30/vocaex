@@ -1,7 +1,7 @@
 {
   "name": "vocamate-extension",
   "displayName": "VocaMate",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "description": "Tra và lưu từ tiếng Anh ngay trên trang web",
   "author": "BN_team",
   "scripts": {

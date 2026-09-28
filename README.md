@@ -29,7 +29,7 @@ Nút **Nghe** dùng giọng tiếng Anh có sẵn trong trình duyệt/máy, ưu
 
 ## Nguồn dữ liệu và quyền riêng tư
 
-- Nghĩa và ví dụ được lấy từ yêu cầu dịch tới Google Translate. Phiên âm còn thiếu được bổ sung từ [CMU Pronouncing Dictionary](https://github.com/cmusphinx/cmudict) đóng gói cùng extension hoặc từ [FreeDictionaryAPI.com](https://freedictionaryapi.com/) và Wiktionary. Khi dùng dữ liệu FreeDictionaryAPI, thẻ kết quả hiển thị liên kết ghi nguồn.
+- Nghĩa và ví dụ được lấy từ yêu cầu dịch tới Google Translate. Một số phiên âm đã được đối chiếu với [Cambridge Dictionary](https://dictionary.cambridge.org/pronunciation/) để sửa các mục sai trong CMU. Với các từ khác, extension ưu tiên phiên âm Anh-Mỹ từ [FreeDictionaryAPI.com](https://freedictionaryapi.com/) và Wiktionary, rồi dùng [CMU Pronouncing Dictionary](https://github.com/cmusphinx/cmudict) đóng gói sẵn nếu dịch vụ không trả kịp hoặc không có từ. Khi dùng dữ liệu FreeDictionaryAPI, thẻ kết quả hiển thị liên kết ghi nguồn.
 - Văn bản bạn chủ động tra được gửi tới các dịch vụ trên để lấy kết quả. Danh sách từ và cài đặt lưu trong `chrome.storage.local` trên trình duyệt, không tự đồng bộ. Danh sách giữ tối đa 500 từ; lưu lại cùng một từ sẽ cập nhật mục cũ.
 - Extension chỉ yêu cầu quyền `storage`, `activeTab` và truy cập tới các máy chủ dịch/từ điển được khai báo trong `package.json`.
 
@@ -37,6 +37,7 @@ Nút **Nghe** dùng giọng tiếng Anh có sẵn trong trình duyệt/máy, ưu
 
 - Cần kết nối mạng để tra nghĩa. Endpoint Google Translate hiện dùng là endpoint công khai, nên tra cứu có thể lỗi nếu dịch vụ thay đổi hoặc giới hạn yêu cầu.
 - Một số từ mới, tên riêng hoặc thuật ngữ hiếm có thể chưa có phiên âm hay ví dụ. Phiên âm CMU được chuyển sang IPA theo giọng Anh-Mỹ gần đúng; các giọng đọc khác có thể khác.
+- Phạm vi kiểm tra và các mục đã sửa theo Cambridge được ghi trong [báo cáo rà soát phiên âm](vocaMate-extension-main/PRONUNCIATION-AUDIT.md).
 - Nút tra trên trang chỉ hoạt động ở trang HTTP/HTTPS cho phép content script. Các trang hệ thống của Chrome, Chrome Web Store và một số PDF/iframe không hỗ trợ.
 
 ## Phát triển và kiểm tra

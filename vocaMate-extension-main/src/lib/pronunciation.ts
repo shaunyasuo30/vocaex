@@ -10,6 +10,36 @@ const phonemes: Record<string, string> = {
 }
 const vowels = new Set(["AA", "AE", "AH", "AO", "AW", "AY", "EH", "ER", "EY", "IH", "IY", "OW", "OY", "UH", "UW"])
 
+// Các mục CMU dưới đây khác cách đọc Anh-Mỹ được đối chiếu tại
+// dictionary.cambridge.org/pronunciation/english/<word>.
+// Stochastically được đối chiếu thêm tại en.wiktionary.org/wiki/stochastically.
+const verifiedPronunciations: Record<string, string> = {
+  stochastic: "/stəˈkæstɪk/",
+  stochastically: "/stəˈkæstɪkli/",
+  stochastics: "/stəˈkæstɪks/",
+  algorithm: "/ˈælɡɚɪðəm/",
+  algorithms: "/ˈælɡɚɪðəmz/",
+  analysis: "/əˈnæləsɪs/",
+  asynchronous: "/eɪˈsɪŋkɹənəs/",
+  classification: "/ˌklæsəfəˈkeɪʃən/",
+  convolution: "/ˌkɑnvəˈluʃən/",
+  matrices: "/ˈmeɪtɹəˌsiz/",
+  network: "/ˈnɛtwɝk/",
+  networks: "/ˈnɛtwɝks/",
+  optimization: "/ˌɑptəməˈzeɪʃən/",
+  optimize: "/ˈɑptəmaɪz/",
+  optimized: "/ˈɑptəmaɪzd/",
+  parameter: "/pəˈɹæmətɚ/",
+  parameters: "/pəˈɹæmətɚz/",
+  probabilistic: "/ˌpɹɑbəbəlˈɪstɪk/",
+  process: "/ˈpɹɑsɛs/",
+  query: "/ˈkwɪɹi/"
+}
+
+export function verifiedPronunciation(value: string): string | null {
+  return verifiedPronunciations[value.trim().toLowerCase()] || null
+}
+
 export function arpabetToIpa(value: string): string | null {
   const parts = value.trim().split(/\s+/u).map((part) => {
     const match = /^([A-Z]+)([012]?)$/u.exec(part)
@@ -38,6 +68,7 @@ export function arpabetToIpa(value: string): string | null {
 }
 
 function partPronunciation(part: string): string | null {
+  if (verifiedPronunciations[part]) return verifiedPronunciations[part]
   const direct = dictionary[part]
   if (typeof direct === "string") return arpabetToIpa(direct)
   for (const prefix of ["hyper", "back", "micro", "macro", "meta", "inter", "intra", "multi", "anti", "auto", "bio", "pre", "post"]) {
