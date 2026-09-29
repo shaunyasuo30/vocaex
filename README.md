@@ -30,7 +30,7 @@ Nút **Nghe** dùng giọng tiếng Anh có sẵn trong trình duyệt/máy, ưu
 ## Nguồn dữ liệu và quyền riêng tư
 
 - Nghĩa và ví dụ được lấy từ yêu cầu dịch tới Google Translate. Một số phiên âm đã được đối chiếu với [Cambridge Dictionary](https://dictionary.cambridge.org/pronunciation/) để sửa các mục sai trong CMU. Với các từ khác, extension ưu tiên phiên âm Anh-Mỹ từ [FreeDictionaryAPI.com](https://freedictionaryapi.com/) và Wiktionary, rồi dùng [CMU Pronouncing Dictionary](https://github.com/cmusphinx/cmudict) đóng gói sẵn nếu dịch vụ không trả kịp hoặc không có từ. Khi dùng dữ liệu FreeDictionaryAPI, thẻ kết quả hiển thị liên kết ghi nguồn.
-- Văn bản bạn chủ động tra được gửi tới các dịch vụ trên để lấy kết quả. Danh sách từ và cài đặt lưu trong `chrome.storage.local` trên trình duyệt, không tự đồng bộ. Danh sách giữ tối đa 500 từ; lưu lại cùng một từ sẽ cập nhật mục cũ.
+- Văn bản bạn chủ động tra được gửi tới các dịch vụ trên để lấy kết quả. Danh sách từ và cài đặt lưu trong `chrome.storage.local` trên trình duyệt, không tự đồng bộ. Danh sách giữ tối đa 500 từ; lưu lại cùng một từ sẽ cập nhật mục cũ. Khi lưu từ ngay trên trang, extension lưu thêm địa chỉ trang (không gồm query hoặc fragment) riêng với liên kết nguồn từ điển.
 - Extension chỉ yêu cầu quyền `storage`, `activeTab` và truy cập tới các máy chủ dịch/từ điển được khai báo trong `package.json`.
 
 ## Giới hạn hiện tại
@@ -48,9 +48,12 @@ npm run dev        # tạo bản phát triển trong build/chrome-mv3-dev
 npm run typecheck
 npm test
 npm run build      # tạo bản dùng thử trong build/chrome-mv3-prod
+npm run verify:build # kiểm tra manifest, worker và dữ liệu phát âm trong bản build
 npm run package    # đóng gói bản production thành ZIP
 ```
 
-Mã nguồn chính: `src/content.tsx` hiển thị nút/thẻ trên trang, `src/popup.tsx` là cửa sổ tra từ, `src/background.ts` xử lý yêu cầu và cache tạm. Các hàm tra cứu, phiên âm, phát âm và lưu dữ liệu nằm trong `src/lib/`; các bài kiểm tra nằm trong `tests/`.
+Mã nguồn chính: `src/content.tsx` hiển thị nút/thẻ trên trang, `src/popup.tsx` là cửa sổ tra từ, `src/background.ts` xử lý yêu cầu, cache tạm và tuần tự hóa thao tác lưu/xóa từ. Dữ liệu CMU được đóng gói thành `cmu-pronunciations.json` và chỉ được đọc khi cần phát âm dự phòng. Các hàm tra cứu, phiên âm, phát âm và lưu dữ liệu nằm trong `src/lib/`; các bài kiểm tra nằm trong `tests/`.
 
 Giấy phép và ghi nhận dữ liệu/thư viện CMU nằm trong [`NOTICE.txt`](NOTICE.txt), cũng được chép vào bản build. Nếu phát hành rộng rãi, cần xem lại điều khoản và hạn mức của các dịch vụ dữ liệu đang dùng.
+
+Trước khi phát hành, chạy [kiểm tra trên Chrome](vocaMate-extension-main/BROWSER-QA.md) với bản đóng gói cuối.

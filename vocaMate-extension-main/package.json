@@ -5,9 +5,12 @@
   "description": "Tra và lưu từ tiếng Anh ngay trên trang web",
   "author": "BN_team",
   "scripts": {
+    "predev": "node scripts/copy-notice.mjs --dev",
     "dev": "plasmo dev",
     "build": "plasmo build",
     "postbuild": "node scripts/copy-notice.mjs",
+    "verify:build": "node scripts/verify-build.mjs",
+    "prepackage": "npm run build && npm run verify:build",
     "package": "plasmo package",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.ts"

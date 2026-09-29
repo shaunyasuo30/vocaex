@@ -1,4 +1,25 @@
-import { dictionary } from "cmu-pronouncing-dictionary"
+export type PronunciationDictionary = Record<string, string>
+
+let dictionaryPromise: Promise<PronunciationDictionary> | null = null
+
+export function loadPronunciationDictionary(): Promise<PronunciationDictionary> {
+  if (!dictionaryPromise) {
+    dictionaryPromise = fetch(chrome.runtime.getURL("cmu-pronunciations.json"))
+      .then((response) => {
+        if (!response.ok) throw new Error("Pronunciation dictionary unavailable")
+        return response.json() as Promise<PronunciationDictionary>
+      })
+      .catch((error) => {
+        dictionaryPromise = null
+        throw error
+      })
+  }
+  return dictionaryPromise
+}
+
+export async function localPronunciationAsync(value: string): Promise<string | null> {
+  try { return localPronunciation(value, await loadPronunciationDictionary()) } catch { return null }
+}
 
 const phonemes: Record<string, string> = {
   AA: "ɑ", AE: "æ", AH: "ʌ", AO: "ɔ", AW: "aʊ", AY: "aɪ", B: "b",
@@ -67,7 +88,7 @@ export function arpabetToIpa(value: string): string | null {
   return `/${output}/`
 }
 
-function partPronunciation(part: string): string | null {
+function partPronunciation(part: string, dictionary: PronunciationDictionary): string | null {
   if (verifiedPronunciations[part]) return verifiedPronunciations[part]
   const direct = dictionary[part]
   if (typeof direct === "string") return arpabetToIpa(direct)
@@ -82,11 +103,11 @@ function partPronunciation(part: string): string | null {
   return null
 }
 
-export function localPronunciation(value: string): string | null {
+export function localPronunciation(value: string, dictionary: PronunciationDictionary): string | null {
   const normalized = value.trim().toLowerCase()
   if (!/^[a-z]+(?:[ -][a-z]+)*$/u.test(normalized)) return null
   const parts = normalized.split(/[ -]/u)
-  const ipaParts = parts.map(partPronunciation)
+  const ipaParts = parts.map((part) => partPronunciation(part, dictionary))
   if (ipaParts.some((part) => !part)) return null
   return `/${ipaParts.map((part) => part!.slice(1, -1)).join(" ")}/`
 }

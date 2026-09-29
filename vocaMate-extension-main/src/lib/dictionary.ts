@@ -1,5 +1,5 @@
 import { normalizeWord, type DetailsReply, type DictionaryDetails } from "./lookup.ts"
-import { localPronunciation, verifiedPronunciation } from "./pronunciation.ts"
+import { localPronunciationAsync, verifiedPronunciation } from "./pronunciation.ts"
 
 export function parseFreeDictionary(data: unknown, americanFallback: string | null = null): DictionaryDetails {
   const empty: DictionaryDetails = { phonetic: "", examples: [], audioUrl: null }
@@ -38,12 +38,12 @@ function pronunciationRank(item: any): number {
   return 1
 }
 
-export async function lookupDetails(word: string, signal: AbortSignal): Promise<DetailsReply> {
+export async function lookupDetails(word: string, signal: AbortSignal, getLocalPronunciation = localPronunciationAsync): Promise<DetailsReply> {
   const normalized = normalizeWord(word)
   if (!normalized) return { ok: false, error: "Yêu cầu tra từ không hợp lệ." }
   const verified = verifiedPronunciation(normalized)
   if (verified) return { ok: true, details: { phonetic: verified, examples: [], audioUrl: null } }
-  const local = localPronunciation(normalized)
+  const local = await getLocalPronunciation(normalized)
   const controller = local ? new AbortController() : null
   const onAbort = () => controller?.abort()
   if (controller) {

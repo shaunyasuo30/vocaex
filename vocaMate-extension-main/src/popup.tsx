@@ -82,31 +82,34 @@ export default function Popup() {
   return <main className="vm-popup">
     <header className="vm-hero">
       <div className="vm-brand-row">
-        <span className="vm-logo" aria-hidden="true">✦</span>
-        <span className="vm-brand">VocaMate</span>
-        <span className="vm-badge">HỌC MỌI LÚC</span>
+        <div className="vm-brand-lockup"><span className="vm-logo" aria-hidden="true">✦</span><span className="vm-brand">VocaMate<span className="vm-brand-period">.</span></span></div>
+        <span className="vm-badge"><span className="vm-badge-dot" aria-hidden="true" /> BẠN ĐỒNG HÀNH</span>
       </div>
-      <h1>Học từ mới<br /><span>ngay khi bạn đọc.</span></h1>
-      <p>Tra nhanh, nghe phát âm, lưu lại để nhớ lâu.</p>
+      <div className="vm-hero-copy">
+        <span className="vm-eyebrow">HỌC TỪ MỖI TRANG BẠN ĐỌC</span>
+        <h1>Đọc đâu,<br /><span>hiểu ngay đó.</span></h1>
+        <p>Chạm vào từ mới. Hiểu nghĩa, nghe cách đọc và lưu lại điều hay.</p>
+      </div>
+      <div className="vm-hero-decoration" aria-hidden="true"><span>hello</span><span>xin chào</span><span>✦</span></div>
     </header>
 
     <div className="vm-body">
       <form onSubmit={lookup} className="vm-search-form">
-        <label htmlFor="vm-word-input" className="vm-section-label">TRA TỪ NHANH</label>
+        <div className="vm-search-heading"><label htmlFor="vm-word-input" className="vm-section-label">TRA TỪ NHANH</label><span>EN → VI</span></div>
         <div className="vm-search-row">
           <span className="vm-search-icon" aria-hidden="true">⌕</span>
           <input id="vm-word-input" aria-label="Từ cần tra" placeholder="Nhập từ tiếng Anh…" value={query} onChange={(event) => { requestId.current++; setQuery(event.target.value); setReply(null); setLoading(false); setEnriching(false) }} maxLength={50} />
-          <button type="submit" disabled={loading} className="vm-primary-button">Tra <span aria-hidden="true">→</span></button>
+          <button type="submit" disabled={loading} className="vm-primary-button vm-search-button">Tra <span aria-hidden="true">→</span></button>
         </div>
       </form>
 
       {loading && <div role="status" className="vm-status"><span aria-hidden="true">✦</span> Đang tìm nghĩa cho bạn…</div>}
       {reply?.ok === false && <div role="alert" className="vm-error">{reply.error}</div>}
       {result && <section className="vm-result" aria-label={`Kết quả tra ${result.word}`}>
-        <div className="vm-result-top"><span className="vm-result-kicker">KẾT QUẢ TRA TỪ</span><span className="vm-result-star" aria-hidden="true">✦</span></div>
+        <div className="vm-result-top"><span className="vm-result-kicker">KHÁM PHÁ TỪ VỰNG</span><span className="vm-result-star" aria-hidden="true">✦</span></div>
         <h2>{result.word}</h2>
         {result.phonetic && <div className="vm-phonetic">/{result.phonetic.replace(/^\/+|\/+$/gu, "")}/</div>}
-        <p className="vm-meaning">{result.translation}</p>
+        <div className="vm-meaning-card"><span className="vm-mini-label">NGHĨA TIẾNG VIỆT</span><p className="vm-meaning">{result.translation}</p></div>
         {result.examples.length > 0 && <div className="vm-examples"><span className="vm-mini-label">VÍ DỤ</span>{result.examples.map((example) => <p key={example}>{example}</p>)}</div>}
         {result.sourceUrl && <p className="vm-source">Nguồn: <a href="https://freedictionaryapi.com/" target="_blank" rel="noopener noreferrer">FreeDictionaryAPI.com</a> · <a href={result.sourceUrl} target="_blank" rel="noopener noreferrer">Wiktionary</a></p>}
         {result.partial && <p className="vm-note">{enriching ? "Đang bổ sung dữ liệu từ điển…" : [!result.phonetic && "Chưa có phiên âm", !result.examples.length && "Chưa có ví dụ"].filter(Boolean).join(" · ")}</p>}
@@ -117,17 +120,17 @@ export default function Popup() {
       </section>}
 
       <section className="vm-panel vm-settings" aria-label="Cài đặt">
-        <div className="vm-panel-heading"><span className="vm-panel-icon" aria-hidden="true">⚙</span><h2>Tùy chỉnh</h2></div>
+        <div className="vm-panel-heading"><span className="vm-panel-icon" aria-hidden="true">⚙</span><div><span className="vm-panel-overline">TRẢI NGHIỆM CỦA BẠN</span><h2>Tùy chỉnh</h2></div></div>
         <label className="vm-setting-row"><span><strong>Bật VocaMate</strong><small>Hiện nút tra khi bôi đen</small></span><input className="vm-switch" type="checkbox" checked={settings.enabled} onChange={(event) => updateSettings({ ...settings, enabled: event.target.checked })} /></label>
         {host && <label className="vm-setting-row"><span><strong>Trang hiện tại</strong><small title={host}>{host}</small></span><input className="vm-switch" type="checkbox" checked={!settings.disabledHosts.includes(host)} onChange={(event) => updateSettings({ ...settings, disabledHosts: event.target.checked ? settings.disabledHosts.filter((item) => item !== host) : [...settings.disabledHosts, host] })} /></label>}
       </section>
 
       <section className="vm-panel vm-saved" aria-label="Từ đã lưu">
-        <div className="vm-panel-heading"><span className="vm-panel-icon vm-book-icon" aria-hidden="true">▤</span><h2>Từ đã lưu <span className="vm-count">{words.length}</span></h2></div>
+        <div className="vm-panel-heading"><span className="vm-panel-icon vm-book-icon" aria-hidden="true">▤</span><div><span className="vm-panel-overline">BỘ SƯU TẬP</span><h2>Từ đã lưu <span className="vm-count">{words.length}</span></h2></div></div>
         <input className="vm-filter" aria-label="Tìm từ đã lưu" placeholder="⌕  Tìm trong danh sách…" value={filter} onChange={(event) => setFilter(event.target.value)} />
         <div className="vm-word-list">
           {visibleWords.length === 0 && <p className="vm-empty">{words.length === 0 ? "Lưu từ mới để bắt đầu bộ sưu tập của bạn." : "Không tìm thấy từ phù hợp."}</p>}
-          {visibleWords.map((item) => <div key={item.word} className="vm-word-row"><div><strong>{item.word}</strong><span>{item.translation}</span></div><button type="button" aria-label={`Xóa ${item.word}`} onClick={() => removeWord(item.word).then(refresh).catch(() => setNotice("Không xóa được từ."))}>✕</button></div>)}
+          {visibleWords.map((item) => <div key={item.word} className="vm-word-row"><span className="vm-word-initial" aria-hidden="true">{item.word.slice(0, 1).toLocaleUpperCase()}</span><div><strong>{item.word}</strong><span>{item.translation}</span></div><button type="button" aria-label={`Xóa ${item.word}`} onClick={() => removeWord(item.word).then(refresh).catch(() => setNotice("Không xóa được từ."))}>✕</button></div>)}
         </div>
         {words.length > 0 && <button type="button" className="vm-clear-button" onClick={() => clearSavedWords().then(refresh).catch(() => setNotice("Không xóa được danh sách từ."))}>Xóa tất cả từ đã lưu</button>}
       </section>

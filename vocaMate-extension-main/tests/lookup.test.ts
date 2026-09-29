@@ -1,11 +1,13 @@
 import assert from "node:assert/strict"
 import { afterEach, test } from "node:test"
+import { dictionary } from "cmu-pronouncing-dictionary"
 
 import { lookupDetails, parseFreeDictionary } from "../src/lib/dictionary.ts"
 import { lookupWord, mergeDetails, normalizeSelection, normalizeText, normalizeWord, parseGoogleDetails, parseTranslation } from "../src/lib/lookup.ts"
 import { arpabetToIpa, localPronunciation } from "../src/lib/pronunciation.ts"
 
 const originalFetch = globalThis.fetch
+const getLocal = async (word: string) => localPronunciation(word, dictionary)
 afterEach(() => { globalThis.fetch = originalFetch })
 
 test("normalizes input and rejects invalid requests", () => {
@@ -91,7 +93,7 @@ test("capitalized selection retains its translation and gets lowercase pronuncia
 
 test("dictionary can enrich an already visible result", async () => {
   globalThis.fetch = async () => Response.json({ entries: [{ language: { code: "en" }, pronunciations: [{ type: "ipa", text: "/ˈklæsɪfaɪər/", tags: ["General American"] }], senses: [{ examples: ["An example"] }] }] })
-  const details = await lookupDetails("classifier", new AbortController().signal)
+  const details = await lookupDetails("classifier", new AbortController().signal, getLocal)
   assert.equal(details.ok, true)
   if (details.ok) {
     const result = mergeDetails({ word: "classifier", translation: "sự phân loại", phonetic: "ˈklasəˌfīər", examples: [], audioUrl: null, partial: true }, details.details)
@@ -104,20 +106,20 @@ test("dictionary can enrich an already visible result", async () => {
 test("local CMU pronunciation fills words and technical compounds without network", async () => {
   globalThis.fetch = async () => { throw new Error("Should not fetch") }
   assert.equal(arpabetToIpa("D EY1 T AH0 S EH2 T S"), "/ˈdeɪtəˌsɛts/")
-  assert.equal(localPronunciation("datasets"), "/ˈdeɪtəˌsɛts/")
-  assert.match(localPronunciation("machine learning") || "", /^\/.* .*\/$/u)
-  assert.ok(localPronunciation("hyperparameter"))
-  assert.ok(localPronunciation("backpropagation"))
-  const reply = await lookupDetails("datasets", new AbortController().signal)
+  assert.equal(localPronunciation("datasets", dictionary), "/ˈdeɪtəˌsɛts/")
+  assert.match(localPronunciation("machine learning", dictionary) || "", /^\/.* .*\/$/u)
+  assert.ok(localPronunciation("hyperparameter", dictionary))
+  assert.ok(localPronunciation("backpropagation", dictionary))
+  const reply = await lookupDetails("datasets", new AbortController().signal, getLocal)
   assert.equal(reply.ok, true)
   if (reply.ok) assert.equal(reply.details.phonetic, "/ˈdeɪtəˌsɛts/")
 })
 
 test("verified pronunciation corrects the stochastic word family and phrases", async () => {
   globalThis.fetch = async () => { throw new Error("Should not fetch") }
-  assert.equal(localPronunciation("stochastic"), "/stəˈkæstɪk/")
-  assert.equal(localPronunciation("stochastically"), "/stəˈkæstɪkli/")
-  assert.equal(localPronunciation("stochastic gradient descent"), "/stəˈkæstɪk ˈɡɹeɪdiənt dɪˈsɛnt/")
+  assert.equal(localPronunciation("stochastic", dictionary), "/stəˈkæstɪk/")
+  assert.equal(localPronunciation("stochastically", dictionary), "/stəˈkæstɪkli/")
+  assert.equal(localPronunciation("stochastic gradient descent", dictionary), "/stəˈkæstɪk ˈɡɹeɪdiənt dɪˈsɛnt/")
   const reply = await lookupDetails("Stochastic", new AbortController().signal)
   assert.equal(reply.ok, true)
   if (reply.ok) assert.equal(reply.details.phonetic, "/stəˈkæstɪk/")
@@ -136,7 +138,7 @@ test("Cambridge-checked corrections replace misleading CMU entries", () => {
     probabilistic: "/ˌpɹɑbəbəlˈɪstɪk/",
     query: "/ˈkwɪɹi/"
   }
-  for (const [word, phonetic] of Object.entries(expected)) assert.equal(localPronunciation(word), phonetic, word)
+  for (const [word, phonetic] of Object.entries(expected)) assert.equal(localPronunciation(word, dictionary), phonetic, word)
 })
 
 test("dictionary lookup prefers US IPA over a UK entry and overrides CMU fallback", async () => {
@@ -147,7 +149,7 @@ test("dictionary lookup prefers US IPA over a UK entry and overrides CMU fallbac
     ] }],
     source: { url: "https://en.wiktionary.org/wiki/token" }
   })
-  const reply = await lookupDetails("token", new AbortController().signal)
+  const reply = await lookupDetails("token", new AbortController().signal, getLocal)
   assert.equal(reply.ok, true)
   if (reply.ok) {
     assert.equal(reply.details.phonetic, "/ˈtoʊkən/")

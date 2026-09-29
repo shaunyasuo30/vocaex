@@ -1,11 +1,17 @@
-import type { PlasmoCSConfig } from "plasmo"
-import { useEffect, useRef, useState } from "react"
+import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import { playPronunciation } from "./lib/audio"
 import { MAX_TEXT_LENGTH, MAX_WORD_LENGTH, mergeDetails, normalizeSelection, type DetailsReply, type LookupReply, type LookupResult } from "./lib/lookup"
+import { floatingPosition } from "./lib/position"
 import { getSettings, saveWord, type Settings } from "./lib/storage"
 
 export const config: PlasmoCSConfig = { matches: ["http://*/*", "https://*/*"] }
+export const getStyle: PlasmoGetStyle = () => {
+  const style = document.createElement("style")
+  style.textContent = floatingStyles
+  return style
+}
 const defaultSettings: Settings = { enabled: true, disabledHosts: [] }
 
 export default function VocaMateContent() {
@@ -16,6 +22,8 @@ export default function VocaMateContent() {
   const [enriching, setEnriching] = useState(false)
   const [reply, setReply] = useState<LookupReply | null>(null)
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState("")
   const [position, setPosition] = useState({ top: 0, left: 0 })
   const root = useRef<HTMLDivElement>(null)
   const range = useRef<Range | null>(null)
@@ -23,7 +31,7 @@ export default function VocaMateContent() {
   const lastWord = useRef("")
 
   const enabled = settings.enabled && !settings.disabledHosts.includes(location.hostname)
-  const close = () => {
+  const close = useCallback(() => {
     requestId.current++
     setOpen(false)
     setWord("")
@@ -31,7 +39,21 @@ export default function VocaMateContent() {
     setLoading(false)
     setEnriching(false)
     setReply(null)
-  }
+    setSaving(false)
+    setNotice("")
+  }, [])
+
+  const reposition = useCallback(() => {
+    if (!range.current || !root.current) return
+    if (!range.current.commonAncestorContainer.isConnected) { close(); return }
+    const rect = range.current.getBoundingClientRect()
+    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) { close(); return }
+    const panel = root.current.getBoundingClientRect()
+    const { top, left } = floatingPosition(rect, panel, { width: window.innerWidth, height: window.innerHeight })
+    setPosition((previous) => previous.top === top && previous.left === left ? previous : { top, left })
+  }, [close])
+
+  useLayoutEffect(() => { if (word && enabled) reposition() }, [word, open, reply, loading, enriching, notice, enabled, reposition])
 
   useEffect(() => {
     getSettings().then(setSettings).catch(() => {})
@@ -62,13 +84,15 @@ export default function VocaMateContent() {
       lastWord.current = selected
       range.current = selection.getRangeAt(0).cloneRange()
       const rect = range.current.getBoundingClientRect()
-      setPosition({ top: Math.max(8, Math.min(window.innerHeight - 50, rect.bottom + 8)), left: Math.max(8, Math.min(window.innerWidth - 170, rect.left)) })
+      setPosition({ top: Math.max(8, rect.bottom + 8), left: Math.max(8, rect.left) })
       setWord(selected)
       setOpen(false)
       setReply(null)
       setLoading(false)
       setEnriching(false)
       setSaved(false)
+      setSaving(false)
+      setNotice("")
     }
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === "Escape") close()
@@ -77,36 +101,38 @@ export default function VocaMateContent() {
     const onOutside = (event: PointerEvent) => {
       if (open && root.current && !event.composedPath().includes(root.current)) close()
     }
-    const updatePosition = () => {
-      if (!range.current) return
-      const rect = range.current.getBoundingClientRect()
-      setPosition({ top: Math.max(8, Math.min(window.innerHeight - (open ? 290 : 50), rect.bottom + 8)), left: Math.max(8, Math.min(window.innerWidth - (open ? (word.length > MAX_WORD_LENGTH ? 400 : 360) : 170), rect.left)) })
+    let frame = 0
+    const schedulePosition = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        reposition()
+      })
     }
     document.addEventListener("mouseup", onSelection)
     document.addEventListener("keyup", onKeyUp)
     document.addEventListener("pointerdown", onOutside)
-    window.addEventListener("scroll", updatePosition, true)
-    window.addEventListener("resize", updatePosition)
+    window.addEventListener("scroll", schedulePosition, true)
+    window.addEventListener("resize", schedulePosition)
     return () => {
       document.removeEventListener("mouseup", onSelection)
       document.removeEventListener("keyup", onKeyUp)
       document.removeEventListener("pointerdown", onOutside)
-      window.removeEventListener("scroll", updatePosition, true)
-      window.removeEventListener("resize", updatePosition)
+      window.removeEventListener("scroll", schedulePosition, true)
+      window.removeEventListener("resize", schedulePosition)
+      if (frame) cancelAnimationFrame(frame)
     }
-  }, [enabled, open, word])
+  }, [enabled, open, close, reposition])
 
   const lookup = async () => {
     const current = ++requestId.current
-    if (range.current) {
-      const rect = range.current.getBoundingClientRect()
-      setPosition({ top: Math.max(8, Math.min(window.innerHeight - 290, rect.bottom + 8)), left: Math.max(8, Math.min(window.innerWidth - (word.length > MAX_WORD_LENGTH ? 400 : 360), rect.left)) })
-    }
     setOpen(true)
     setLoading(true)
     setEnriching(false)
     setReply(null)
     setSaved(false)
+    setSaving(false)
+    setNotice("")
     if (word.length > MAX_TEXT_LENGTH) {
       setReply({ ok: false, error: "Đoạn quá dài. Hãy chọn tối đa 2.000 ký tự để dịch." })
       setLoading(false)
@@ -138,38 +164,52 @@ export default function VocaMateContent() {
   const result: LookupResult | null = reply?.ok ? reply.result : null
   const isPassage = word.length > MAX_WORD_LENGTH
   const title = word.length > 100 ? `${word.slice(0, 100)}…` : word
+  const saveCurrent = async (value: LookupResult) => {
+    const current = requestId.current
+    setSaving(true)
+    setNotice("")
+    try {
+      await saveWord(value, location.origin + location.pathname)
+      if (current === requestId.current) setSaved(true)
+    } catch {
+      if (current === requestId.current) setNotice("Không lưu được từ. Hãy thử lại.")
+    } finally {
+      if (current === requestId.current) setSaving(false)
+    }
+  }
   if (!enabled || !word) return null
   return (
-    <div ref={root} style={{ position: "fixed", top: position.top, left: position.left, zIndex: 2147483647, fontFamily: "Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif", fontSize: 13, color: "#183152", boxSizing: "border-box" }}>
+    <div ref={root} className="vm-floating-root" style={{ position: "fixed", top: position.top, left: position.left, zIndex: 2147483647 }}>
       {!open ? (
-        <button type="button" onClick={lookup} style={buttonStyle}><span aria-hidden="true" style={{ marginRight: 7 }}>✦</span>{isPassage ? "Dịch đoạn" : "Tra nghĩa"}<span aria-hidden="true" style={{ marginLeft: 8 }}>→</span></button>
+        <button type="button" className="vm-float-trigger" onClick={lookup}><span className="vm-float-trigger-icon" aria-hidden="true">✦</span>{isPassage ? "Dịch đoạn" : "Tra nghĩa"}<span className="vm-float-arrow" aria-hidden="true">→</span></button>
       ) : (
-        <section role="dialog" aria-label={`${isPassage ? "Dịch đoạn" : "Tra nghĩa"} ${title}`} style={{ width: Math.min(isPassage ? 380 : 340, window.innerWidth - 16), maxHeight: "min(70vh, 420px)", overflowY: "auto", background: "linear-gradient(165deg, #ffffff 60%, #f5faff)", border: "1px solid #d9e7fa", borderRadius: 18, boxShadow: "0 20px 50px rgba(24, 65, 125, .22), 0 3px 10px rgba(24, 65, 125, .08)", boxSizing: "border-box" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: "linear-gradient(100deg, #eaf3ff, #effdfd)", borderBottom: "1px solid #e0ebf8" }}>
-            <span aria-hidden="true" style={{ display: "grid", placeItems: "center", width: 29, height: 29, flexShrink: 0, borderRadius: 10, background: "linear-gradient(135deg, #315ef6, #24c4d1)", color: "white", fontSize: 18 }}>✦</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: "#5d81b0", fontSize: 9, letterSpacing: 1.2, fontWeight: 800 }}>VOCAMATE · {isPassage ? "DỊCH ĐOẠN" : "TRA TỪ"}</div>
-              <strong style={{ display: "block", color: "#183152", fontSize: 15, lineHeight: 1.3, marginTop: 2, overflowWrap: "anywhere" }}>{title}</strong>
+        <section role="dialog" aria-label={`${isPassage ? "Dịch đoạn" : "Tra nghĩa"} ${title}`} className="vm-float-card" style={{ width: Math.min(isPassage ? 390 : 354, window.innerWidth - 16) }}>
+          <div className="vm-float-header">
+            <span className="vm-float-logo" aria-hidden="true">✦</span>
+            <div className="vm-float-heading">
+              <div className="vm-float-kicker">VOCAMATE <span>·</span> {isPassage ? "DỊCH ĐOẠN" : "TRA TỪ"}</div>
+              <strong>{title}</strong>
             </div>
-            <button type="button" aria-label="Đóng" onClick={close} style={closeButtonStyle}>✕</button>
+            <button type="button" aria-label="Đóng" onClick={close} className="vm-float-close">✕</button>
           </div>
-          <div style={{ padding: 16 }}>
-            {loading && <p role="status" style={{ color: "#3d75ca", fontWeight: 700, margin: "2px 0" }}>✦ Đang tìm nghĩa cho bạn…</p>}
-            {!loading && reply?.ok === false && <div role="alert" style={{ padding: 11, background: "#fff0f1", color: "#ab3f59", borderRadius: 11 }}><p style={{ margin: "0 0 10px" }}>{reply.error}</p><button type="button" onClick={lookup} style={buttonStyle}>Thử lại</button></div>}
+          <div className="vm-float-body">
+            {loading && <p role="status" className="vm-float-loading"><span aria-hidden="true">✦</span> Đang tìm nghĩa cho bạn…</p>}
+            {!loading && reply?.ok === false && <div role="alert" className="vm-float-error"><p>{reply.error}</p><button type="button" onClick={lookup} className="vm-float-primary">Thử lại <span aria-hidden="true">→</span></button></div>}
             {result && <>
-              <div style={{ background: "#f0f7ff", borderLeft: "3px solid #3d87f3", borderRadius: 11, padding: "11px 13px" }}>
-                <div style={{ color: "#6787b4", fontSize: 10, letterSpacing: 1, fontWeight: 800 }}>NGHĨA TIẾNG VIỆT</div>
-                <p style={{ color: "#126b87", fontSize: 17, lineHeight: 1.45, fontWeight: 800, margin: "6px 0 0", overflowWrap: "anywhere" }}>{result.translation}</p>
+              <div className="vm-float-meaning">
+                <div className="vm-float-label">NGHĨA TIẾNG VIỆT</div>
+                <p>{result.translation}</p>
               </div>
               {!isPassage && <>
-                {result.phonetic && <div style={{ color: "#587497", fontSize: 12, marginTop: 11 }}>Phiên âm <strong style={{ color: "#335b8d", marginLeft: 4 }}>{result.phonetic}</strong></div>}
-                {result.examples.length > 0 && <div style={{ marginTop: 14 }}><div style={{ color: "#6080a7", fontSize: 10, letterSpacing: 1, fontWeight: 800 }}>VÍ DỤ SỬ DỤNG</div>{result.examples.map((example) => <p key={example} style={{ background: "#f7faff", border: "1px solid #e6effb", color: "#455e7c", padding: "9px 10px", borderRadius: 9, margin: "7px 0 0", fontSize: 12, lineHeight: 1.5 }}>{example}</p>)}</div>}
-                {result.sourceUrl && <div style={{ color: "#7890ad", fontSize: 10, marginTop: 10 }}>Dữ liệu từ <a href="https://freedictionaryapi.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#3a74c6" }}>FreeDictionaryAPI.com</a> · <a href={result.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#3a74c6" }}>Wiktionary</a></div>}
-                {result.partial && <p style={{ color: "#9b6b23", background: "#fff8e9", borderRadius: 8, padding: "7px 9px", fontSize: 11, margin: "12px 0 0" }}>{enriching ? "Đang bổ sung dữ liệu từ điển…" : [!result.phonetic && "Chưa có phiên âm", !result.examples.length && "Chưa có ví dụ"].filter(Boolean).join(" · ")}</p>}
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
-                  <button type="button" aria-label="Nghe phát âm" onClick={() => { playPronunciation(result.word, result.audioUrl).catch(() => {}) }} style={secondaryButtonStyle}>◖)) Nghe</button>
-                  <button type="button" disabled={saved} onClick={() => saveWord(result, location.origin + location.pathname).then(() => setSaved(true)).catch(() => setReply({ ok: false, error: "Không lưu được từ. Hãy thử lại." }))} style={buttonStyle}>{saved ? "✓ Đã lưu" : "＋ Lưu từ"}</button>
+                {result.phonetic && <div className="vm-float-phonetic"><span>Phiên âm</span><strong>{result.phonetic}</strong></div>}
+                {result.examples.length > 0 && <div className="vm-float-examples"><div className="vm-float-label">VÍ DỤ SỬ DỤNG</div>{result.examples.map((example) => <p key={example}>{example}</p>)}</div>}
+                {result.sourceUrl && <div className="vm-float-source">Dữ liệu từ <a href="https://freedictionaryapi.com/" target="_blank" rel="noopener noreferrer">FreeDictionaryAPI.com</a> · <a href={result.sourceUrl} target="_blank" rel="noopener noreferrer">Wiktionary</a></div>}
+                {result.partial && <p className="vm-float-note">{enriching ? "Đang bổ sung dữ liệu từ điển…" : [!result.phonetic && "Chưa có phiên âm", !result.examples.length && "Chưa có ví dụ"].filter(Boolean).join(" · ")}</p>}
+                <div className="vm-float-actions">
+                  <button type="button" aria-label="Nghe phát âm" onClick={() => { playPronunciation(result.word, result.audioUrl).catch(() => setNotice("Không phát được âm thanh.")) }} className="vm-float-secondary"><span aria-hidden="true">◖))</span> Nghe</button>
+                  <button type="button" disabled={saved || saving} onClick={() => saveCurrent(result)} className="vm-float-primary">{saved ? "✓ Đã lưu" : saving ? "Đang lưu…" : "＋ Lưu từ"}</button>
                 </div>
+                {notice && <p role="alert" className="vm-float-notice">{notice}</p>}
               </>}
             </>}
           </div>
@@ -179,6 +219,47 @@ export default function VocaMateContent() {
   )
 }
 
-const buttonStyle: React.CSSProperties = { background: "linear-gradient(110deg, #315ef6, #258fed)", color: "white", border: "1px solid rgba(255,255,255,.8)", borderRadius: 999, padding: "9px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 17px rgba(42, 104, 221, .26)", whiteSpace: "nowrap" }
-const secondaryButtonStyle: React.CSSProperties = { color: "#2c67b3", background: "#f0f7ff", border: "1px solid #d5e7fc", borderRadius: 999, padding: "9px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }
-const closeButtonStyle: React.CSSProperties = { color: "#6f89a8", background: "#ffffffbd", border: "1px solid #d7e5f7", borderRadius: 9, width: 27, height: 27, flexShrink: 0, cursor: "pointer" }
+const floatingStyles = `
+.vm-floating-root, .vm-floating-root * { box-sizing: border-box; }
+.vm-floating-root { font: 13px Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #192f4c; }
+.vm-floating-root button { font: inherit; cursor: pointer; }
+.vm-floating-root button:focus-visible, .vm-floating-root a:focus-visible { outline: 3px solid #f3b544; outline-offset: 2px; }
+.vm-float-trigger { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border: 1px solid #d8e3fa; border-radius: 999px; background: #fff; color: #2845a8; font-size: 12px !important; font-weight: 800 !important; white-space: nowrap; box-shadow: 0 8px 23px rgba(40, 75, 150, .2); transition: transform .18s, box-shadow .18s; }
+.vm-float-trigger:hover { transform: translateY(-2px); box-shadow: 0 11px 27px rgba(40, 75, 150, .24); }
+.vm-float-trigger-icon { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 50%; background: #405ee8; color: #fff; font-size: 15px; }
+.vm-float-arrow { color: #7793cb; font-size: 15px; }
+.vm-float-card { max-height: min(70vh, 440px); overflow-y: auto; border: 1px solid #dce6f4; border-radius: 19px; background: #fff; box-shadow: 0 22px 56px rgba(24, 53, 103, .23), 0 4px 14px rgba(24, 53, 103, .1); }
+.vm-float-header { display: flex; align-items: flex-start; gap: 10px; padding: 14px 15px; border-bottom: 1px solid #e5edf7; background: linear-gradient(120deg, #eaf2ff, #f9fbff 58%, #f0fbf7); }
+.vm-float-logo { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 10px; background: #405ee8; color: #fff; font-size: 18px; box-shadow: 0 4px 9px rgba(64, 94, 232, .2); }
+.vm-float-heading { flex: 1; min-width: 0; }
+.vm-float-kicker, .vm-float-label { color: #6881a2; font-size: 9px; font-weight: 850; letter-spacing: 1px; }
+.vm-float-kicker span { color: #1cae97; }
+.vm-float-heading strong { display: block; margin-top: 4px; color: #172e4e; font-size: 16px; line-height: 1.28; overflow-wrap: anywhere; }
+.vm-float-close { display: grid; place-items: center; flex: none; width: 27px; height: 27px; padding: 0; border: 1px solid #dbe6f2; border-radius: 9px; background: #fff; color: #748aa3; font-size: 12px !important; }
+.vm-float-close:hover { background: #edf3fc; color: #2e4e75; }
+.vm-float-body { padding: 15px; }
+.vm-float-loading { margin: 2px 0; color: #4865bd; font-size: 12px; font-weight: 750; }
+.vm-float-loading span { display: inline-block; margin-right: 5px; color: #20aa96; animation: vm-breathe 1.3s ease-in-out infinite; }
+.vm-float-error { padding: 11px; border: 1px solid #f5d9de; border-radius: 11px; background: #fff3f4; color: #a5445b; }
+.vm-float-error p { margin: 0 0 10px; line-height: 1.5; }
+.vm-float-meaning { padding: 12px 13px; border: 1px solid #d6eee7; border-radius: 13px; background: linear-gradient(125deg, #edf9f5, #f8fdfb); }
+.vm-float-meaning .vm-float-label { color: #579185; }
+.vm-float-meaning p { margin: 6px 0 0; color: #167668; font-size: 17px; line-height: 1.4; font-weight: 800; overflow-wrap: anywhere; }
+.vm-float-phonetic { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 11px; color: #7d91a8; font-size: 11px; }
+.vm-float-phonetic strong { padding: 4px 8px; border-radius: 7px; background: #edf3ff; color: #4965a5; font-size: 12px; font-weight: 750; }
+.vm-float-examples { margin-top: 14px; }
+.vm-float-examples p { margin: 7px 0 0; padding: 8px 10px; border-left: 2px solid #bbd9f5; border-radius: 0 9px 9px 0; background: #f7faff; color: #526a84; font-size: 12px; line-height: 1.5; }
+.vm-float-source { margin-top: 11px; color: #8699ae; font-size: 10px; line-height: 1.4; }
+.vm-float-source a { color: #4366bf; text-decoration: underline; text-underline-offset: 2px; }
+.vm-float-note { margin: 11px 0 0; padding: 8px 9px; border-radius: 8px; background: #fff7e7; color: #946b2b; font-size: 11px; line-height: 1.4; }
+.vm-float-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.vm-float-primary, .vm-float-secondary { min-height: 34px; padding: 8px 11px; border-radius: 9px; font-size: 12px !important; font-weight: 800 !important; white-space: nowrap; transition: transform .18s, background .18s; }
+.vm-float-primary { border: 1px solid #3856dd; background: #405ee8; color: #fff; box-shadow: 0 4px 10px rgba(64, 94, 232, .18); }
+.vm-float-primary:hover:not(:disabled) { transform: translateY(-1px); background: #304cce; }
+.vm-float-primary:disabled { cursor: wait; opacity: .65; }
+.vm-float-secondary { border: 1px solid #d3e2f5; background: #f5f9ff; color: #41669d; }
+.vm-float-secondary:hover { transform: translateY(-1px); background: #eaf3ff; }
+.vm-float-notice { margin: 10px 0 0; color: #a5445b; font-size: 11px; }
+@keyframes vm-breathe { 50% { opacity: .45; transform: scale(.85); } }
+@media (prefers-reduced-motion: reduce) { .vm-floating-root * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+`
